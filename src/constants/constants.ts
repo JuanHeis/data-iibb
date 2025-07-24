@@ -116,36 +116,110 @@ export function getFilteredIIBBData(
   return result;
 }
 
-// Función para obtener color basado en el porcentaje de IIBB
-export function getColorByIIBB(percentage: number): string {
-  // Escala: 0-1% verde, 1-2% amarillo verdoso, 2-3% amarillo, 3-4% rojo
-  if (percentage <= 1) {
-    // Verde
-    const intensity = percentage; // 0 a 1
-    return `rgb(${Math.round(34 + intensity * 100)}, ${Math.round(197 + intensity * 58)}, ${Math.round(94 + intensity * 100)})`;
-  } else if (percentage <= 2) {
-    // Verde a amarillo
-    const t = (percentage - 1); // 0 a 1
+// Función para obtener datos filtrados excluyendo el prov_id "1" (Consenso Fiscal)
+export function getFilteredIIBBDataExcludingConsensus(
+  data: IIBBDataItem[], 
+  year: string, 
+  activities: string[]
+): Record<string, number> {
+  // Filtrar por año y excluir prov_id "1"
+  let filteredData = data.filter(item => item.anio === year && item.prov_id !== "1");
+  
+  // Si "General" está incluido o no hay actividades seleccionadas, tomar todas las actividades
+  if (!activities.includes("General") && activities.length > 0) {
+    filteredData = filteredData.filter(item => activities.includes(item.act_econ_nivel_1));
+  }
+  
+  // Agrupar por provincia y calcular promedio si hay múltiples actividades
+  const provinceData: Record<string, number[]> = {};
+  
+  filteredData.forEach(item => {
+    const provincia = normalizeProvinceName(item.provincia); // Normalizar nombre
+    const alicuota = parseAlicuota(item.alicuota_pct);
+    
+    if (!provinceData[provincia]) {
+      provinceData[provincia] = [];
+    }
+    provinceData[provincia].push(alicuota);
+  });
+  
+  // Calcular promedio por provincia
+  const result: Record<string, number> = {};
+  Object.entries(provinceData).forEach(([provincia, values]) => {
+    if (values.length > 0) {
+      const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+      result[provincia] = Number(avg.toFixed(2));
+    }
+  });
+  
+  return result;
+}
+
+// Función para obtener el valor del Consenso Fiscal (prov_id "1")
+export function getConsensoFiscalValue(
+  data: IIBBDataItem[], 
+  year: string, 
+  activities: string[]
+): number | null {
+  // Filtrar por año y solo prov_id "1"
+  let filteredData = data.filter(item => item.anio === year && item.prov_id === "1");
+  
+  // Si "General" está incluido o no hay actividades seleccionadas, tomar todas las actividades
+  if (!activities.includes("General") && activities.length > 0) {
+    filteredData = filteredData.filter(item => activities.includes(item.act_econ_nivel_1));
+  }
+  
+  if (filteredData.length === 0) return null;
+  
+  // Calcular promedio si hay múltiples registros
+  const values = filteredData.map(item => parseAlicuota(item.alicuota_pct));
+  const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+  
+  return Number(avg.toFixed(2));
+}
+
+// Función para obtener color basado en el porcentaje de IIBB con rango dinámico
+export function getColorByIIBB(percentage: number, minValue?: number, maxValue?: number): string {
+  // Si no se proporcionan min/max, usar valores por defecto
+  const min = minValue ?? 0;
+  const max = maxValue ?? 3.7;
+  
+  // Normalizar el valor entre 0 y 1
+  const normalized = Math.max(0, Math.min(1, (percentage - min) / (max - min)));
+  
+  if (normalized <= 0.25) {
+    // Verde (0-25%)
+    const t = normalized / 0.25;
+    const r = Math.round(34 + t * 100); // 34 a 134
+    const g = Math.round(197 + t * 58); // 197 a 255
+    const b = Math.round(94 + t * 100); // 94 a 194
+    return `rgb(${r}, ${g}, ${b})`;
+  } else if (normalized <= 0.5) {
+    // Verde a amarillo (25-50%)
+    const t = (normalized - 0.25) / 0.25;
     const r = Math.round(134 + t * 121); // 134 a 255
     const g = Math.round(255); // mantiene verde alto
     const b = Math.round(194 - t * 194); // 194 a 0
     return `rgb(${r}, ${g}, ${b})`;
-  } else if (percentage <= 3) {
-    // Amarillo a naranja
-    const t = (percentage - 2); // 0 a 1
+  } else if (normalized <= 0.75) {
+    // Amarillo a naranja (50-75%)
+    const t = (normalized - 0.5) / 0.25;
     const r = Math.round(255); // mantiene rojo alto
     const g = Math.round(255 - t * 100); // 255 a 155
     const b = Math.round(0); // mantiene azul bajo
     return `rgb(${r}, ${g}, ${b})`;
   } else {
-    // Naranja a rojo
-    const t = Math.min((percentage - 3) / 0.7, 1); // 0 a 1 (máximo en 3.7%)
+    // Naranja a rojo (75-100%)
+    const t = (normalized - 0.75) / 0.25;
     const r = Math.round(255); // mantiene rojo alto
     const g = Math.round(155 - t * 155); // 155 a 0
     const b = Math.round(0); // mantiene azul bajo
     return `rgb(${r}, ${g}, ${b})`;
   }
 }
+
+// Color gris para Consenso Fiscal
+export const CONSENSO_FISCAL_COLOR = "#9CA3AF"; // Gris
 
 // Función para obtener el nivel de IIBB
 export function getIIBBLevel(percentage: number): string {

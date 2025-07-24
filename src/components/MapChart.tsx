@@ -5,10 +5,11 @@ import {
   Geography,
   ZoomableGroup,
 } from "react-simple-maps";
-import {
-  MAP_JSON,
-  getColorByIIBB,
+import { 
+  MAP_JSON, 
+  getColorByIIBB, 
   normalizeProvinceName,
+  CONSENSO_FISCAL_COLOR
 } from "@/constants/constants";
 
 interface GeoProperties {
@@ -30,6 +31,21 @@ interface MapChartProps {
 const MapChart: React.FC<MapChartProps> = ({ data = {} }) => {
   const [content, setContent] = useState("");
   const [dimensions, setDimensions] = useState({ width: 1400, height: 900 });
+
+  // Calcular rangos dinámicos excluyendo consenso fiscal
+  const { minValue, maxValue } = React.useMemo(() => {
+    // Filtrar datos excluyendo "Alícuota Máxima Consenso Fiscal"
+    const provincialValues = Object.entries(data)
+      .filter(([province]) => province !== "Alícuota Máxima Consenso Fiscal")
+      .map(([, value]) => value);
+    
+    if (provincialValues.length === 0) return { minValue: 0, maxValue: 3.7 };
+    
+    return {
+      minValue: Math.min(...provincialValues),
+      maxValue: Math.max(...provincialValues)
+    };
+  }, [data]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -55,14 +71,20 @@ const MapChart: React.FC<MapChartProps> = ({ data = {} }) => {
   const getProvinceData = (provinceName: string) => {
     const normalizedName = normalizeProvinceName(provinceName);
     const iibbValue = data[normalizedName];
-
+    
     if (iibbValue !== undefined) {
+      // Usar color gris para consenso fiscal, dinámico para provincias
+      const isConsensoFiscal = normalizedName === "Alícuota Máxima Consenso Fiscal";
+      const color = isConsensoFiscal 
+        ? CONSENSO_FISCAL_COLOR 
+        : getColorByIIBB(iibbValue, minValue, maxValue);
+        
       return {
         value: iibbValue,
-        color: getColorByIIBB(iibbValue),
+        color: color,
       };
     }
-
+    
     return {
       value: null,
       color: "#f0f0f0",

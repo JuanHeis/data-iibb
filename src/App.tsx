@@ -1,13 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
 import {
-  BarChart3,
-  TrendingUp,
-  MapPin,
-  Search,
-  Calendar,
-  Building2,
-} from "lucide-react";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -22,7 +14,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -30,214 +21,239 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import MapChart from "@/components/MapChart";
+import ColorLegend from "@/components/ColorLegend";
+import HorizontalBarChart from "@/components/horizontalChart"; // Importar el nuevo componente
+import dataDrive from "@/assets/datadriven.jfif";
 import {
   RAW_IIBB_DATA,
-  getFilteredIIBBData,
-  getIIBBStats,
-  getIIBBLevel,
-  getColorByIIBB,
-  getYearOptions,
-  getActivityOptions,
   getAvailableYears,
-  type IIBBDataItem,
+  getActivityOptions,
+  getFilteredIIBBData,
+  getFilteredIIBBDataExcludingConsensus,
+  getConsensoFiscalValue,
+  getIIBBStats,
+  getColorByIIBB,
 } from "@/constants/constants";
+import { BarChart, Building2, MapPin } from "lucide-react";
+import { Funnel } from "lucide-react";
 
-export default function App() {
-  // Estado para los datos crudos (se actualizará cuando se carguen los datos reales)
-  const [rawData] = useState<IIBBDataItem[]>(RAW_IIBB_DATA);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedYear, setSelectedYear] = useState("");
+function App() {
+  const [selectedYear, setSelectedYear] = useState<string>("2023");
   const [selectedActivities, setSelectedActivities] = useState<string[]>([
     "General",
   ]);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Inicializar año por defecto cuando haya datos
-  const availableYears = useMemo(() => getAvailableYears(rawData), [rawData]);
-  const currentYear =
-    selectedYear || (availableYears.length > 0 ? availableYears[0] : "2024");
-
-  // Debug: verificar datos en consola
-  useEffect(() => {
-    if (rawData.length > 0) {
-      console.log("📊 Total registros:", rawData.length);
-      console.log("📅 Años disponibles:", availableYears);
-      console.log("🏛️ Año actual:", currentYear);
-      console.log("📋 Actividades seleccionadas:", selectedActivities);
-    }
-  }, [rawData, availableYears, currentYear, selectedActivities]);
-
-  // Datos filtrados basados en año y actividades seleccionadas
-  const currentData = useMemo(() => {
-    if (rawData.length === 0) return {};
-    const filtered = getFilteredIIBBData(
-      rawData,
-      currentYear,
-      selectedActivities
-    );
-    console.log(
-      "🗂️ Datos filtrados para",
-      currentYear,
-      ":",
-      Object.keys(filtered).length,
-      "provincias"
-    );
-    return filtered;
-  }, [rawData, currentYear, selectedActivities]);
-
-  const stats = useMemo(() => getIIBBStats(currentData), [currentData]);
-
-  const yearOptions = useMemo(() => getYearOptions(rawData), [rawData]);
+  const availableYears = useMemo(() => getAvailableYears(RAW_IIBB_DATA), []);
   const activityOptions = useMemo(
-    () => getActivityOptions(rawData, currentYear),
-    [rawData, currentYear]
+    () => getActivityOptions(RAW_IIBB_DATA, selectedYear),
+    [selectedYear]
   );
 
+  const provincialData = useMemo(
+    () =>
+      getFilteredIIBBDataExcludingConsensus(
+        RAW_IIBB_DATA,
+        selectedYear,
+        selectedActivities
+      ),
+    [selectedYear, selectedActivities]
+  );
+
+  // Datos incluyendo consenso fiscal para el mapa
+  const allData = useMemo(
+    () => getFilteredIIBBData(RAW_IIBB_DATA, selectedYear, selectedActivities),
+    [selectedYear, selectedActivities]
+  );
+
+  // Valor del consenso fiscal
+  const consensoValue = useMemo(
+    () =>
+      getConsensoFiscalValue(RAW_IIBB_DATA, selectedYear, selectedActivities),
+    [selectedYear, selectedActivities]
+  );
+
+  // Calcular min/max solo de las provincias (sin consenso fiscal)
+  const { min: minValue, max: maxValue } = useMemo(() => {
+    const values = Object.values(provincialData);
+    if (values.length === 0) return { min: 0, max: 3.7 };
+    return {
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+  }, [provincialData]);
+
+  // Estadísticas basadas en datos provinciales
+  const stats = useMemo(() => getIIBBStats(provincialData), [provincialData]);
+
+  // Establecer año inicial
+  useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[availableYears.length - 1]);
+    }
+  }, [availableYears, selectedYear]);
+
+  // Función para manejar cambios en actividades (solo una selección permitida)
   const handleActivityChange = (activity: string, checked: boolean) => {
-    setSelectedActivities((prev) => {
-      if (activity === "General") {
-        return checked ? ["General"] : [];
-      } else {
-        const withoutGeneral = prev.filter((a) => a !== "General");
-        if (checked) {
-          const newActivities = [...withoutGeneral, activity];
-          return newActivities;
-        } else {
-          const filtered = withoutGeneral.filter((a) => a !== activity);
-          return filtered.length === 0 ? ["General"] : filtered;
-        }
-      }
-    });
+    if (checked) {
+      // Si se marca una opción, se convierte en la única seleccionada
+      setSelectedActivities([activity]);
+    } else {
+      // Si se desmarca la única opción seleccionada, vuelve a "General" por defecto
+      setSelectedActivities(["General"]);
+    }
   };
 
-  // Filtrar provincias para la búsqueda
-  const filteredProvinces = Object.entries(currentData).filter(([province]) =>
-    province.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrar provincias para búsqueda móvil
+  const filteredProvinces = useMemo(() => {
+    if (!searchTerm) return [];
 
-  // Mostrar mensaje si no hay datos
-  if (rawData.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-blue-600" />
-              Dashboard IIBB - Argentina
-            </CardTitle>
-            <CardDescription>Esperando datos para cargar...</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Los datos de IIBB se cargarán próximamente. Una vez cargados,
-              podrás explorar:
-            </p>
-            <ul className="list-disc list-inside text-sm text-gray-600 mt-2 space-y-1">
-              <li>Datos por año y actividad económica</li>
-              <li>Mapa interactivo de provincias argentinas</li>
-              <li>Filtros dinámicos por categorías</li>
-              <li>Estadísticas y análisis detallados</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+    return Object.entries(provincialData)
+      .filter(([province]) =>
+        province.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .slice(0, 5); // Máximo 5 resultados
+  }, [searchTerm, provincialData]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <BarChart3 className="h-6 w-6 text-blue-600 " />
+        <div className="flex flex-row items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
               Monitor Fiscal Provincial
-            </CardTitle>
-            <CardDescription>
-              Análisis interactivo del Impuesto sobre los Ingresos Brutos por
-              provincia
-            </CardDescription>
-          </CardHeader>
-        </Card>
+            </h1>
+            <p className="text-lg text-gray-600">
+              Análisis de Alícuotas del Impuesto sobre los Ingresos Brutos por
+              Provincia.
+            </p>
+          </div>
+          <img src={dataDrive} className="h-[80px]" alt="" />
+        </div>
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Rango de Alícuotas
+          <Card className="gap-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-xl font-medium">
+                Provincias Analizadas
               </CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">de 24 provincias</p>
+            </CardContent>
+          </Card>
+
+          <Card className="gap-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-xl font-medium">
+                Promedio IIBB
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.avg}%</div>
+              <p className="text-xs text-muted-foreground">alícuota promedio</p>
+            </CardContent>
+          </Card>
+
+          <Card className="gap-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 ">
+              <CardTitle className="text-xl font-medium">Rango IIBB</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
                 {stats.min}% - {stats.max}%
               </div>
-              <p className="text-xs text-muted-foreground">
-                Variación significativa entre provincias
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Promedio Nacional
-              </CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.avg}%</div>
-              <p className="text-xs text-muted-foreground">
-                Alícuota promedio ponderada
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Provincias Analizadas
-              </CardTitle>
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">
-                Cobertura completa del territorio
-              </p>
+              <p className="text-xs text-muted-foreground">mínimo - máximo</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-12">
-          {/* Mapa Principal */}
-          <div className="lg:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-4">
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Filtros */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-blue-600" />
-                  Mapa de IIBB por Provincias Argentinas
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Funnel className="h-4 w-4 text-blue-600" />
+                  Filtros
                 </CardTitle>
                 <CardDescription>
-                  Visualización interactiva del Impuesto sobre los Ingresos
-                  Brutos (IIBB) por provincia. Los colores van de verde (bajo) a
-                  rojo (alto), con valores entre 1% y 3.7%.
+                  Configurá los parámetros de análisis
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                {/* CRÍTICO: Sin restricciones de altura o contenedor que limiten el mapa */}
-                <div className="w-full">
-                  <MapChart data={currentData} />
+              <CardContent className="space-y-4">
+                {/* Selector de Año */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Año</label>
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar año" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                {/* Selector de Actividades */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">
+                    Actividad Económica
+                  </label>
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="activities">
+                      <AccordionTrigger className="text-sm">
+                        Seleccionar Actividades ({selectedActivities.length})
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {activityOptions.map((option) => (
+                            <div
+                              key={option.value}
+                              className="flex items-center space-x-2"
+                            >
+                              <Checkbox
+                                id={option.value}
+                                checked={selectedActivities.includes(
+                                  option.value
+                                )}
+                                onCheckedChange={(checked) =>
+                                  handleActivityChange(
+                                    option.value,
+                                    checked as boolean
+                                  )
+                                }
+                              />
+                              <label
+                                htmlFor={option.value}
+                                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                {option.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="lg:col-span-4 space-y-6">
             {/* ¿Qué es el IIBB? */}
             <Card>
               <CardHeader>
@@ -284,183 +300,131 @@ export default function App() {
                 </Accordion>
               </CardContent>
             </Card>
+            {/* Buscador móvil */}
+            <div className="block md:hidden">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Buscar Provincia</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    placeholder="Escribí el nombre de una provincia..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
 
-            {/* Selector de Año */}
+                  {filteredProvinces.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Resultados:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {filteredProvinces.map(([province, value]) => (
+                          <Badge
+                            key={province}
+                            variant="outline"
+                            className="text-xs"
+                            style={{
+                              backgroundColor: getColorByIIBB(
+                                value,
+                                minValue,
+                                maxValue
+                              ),
+                              color: value > 2 ? "white" : "black",
+                              borderColor: getColorByIIBB(
+                                value,
+                                minValue,
+                                maxValue
+                              ),
+                            }}
+                          >
+                            {province}: {value.toFixed(1)}%
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <ColorLegend
+                    minValue={minValue}
+                    maxValue={maxValue}
+                    consensoValue={consensoValue ?? undefined}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  Selector de Variable (Año)
-                </CardTitle>
+                <CardTitle>Visualización de Datos IIBB</CardTitle>
+                <CardDescription>
+                  {Object.keys(provincialData).length > 0
+                    ? `Mostrando datos de ${selectedYear} para ${selectedActivities.join(
+                        ", "
+                      )}`
+                    : "Esperando datos para cargar..."}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <Select value={currentYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar año" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {yearOptions.map((year) => (
-                      <SelectItem key={year.value} value={year.value}>
-                        {year.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
+                <Tabs defaultValue="map" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="map">
+                      <MapPin /> Mapa
+                    </TabsTrigger>
+                    <TabsTrigger value="horizontal-chart">
+                      <BarChart /> Barras
+                    </TabsTrigger>
+                  </TabsList>
 
-            {/* Selector de Actividad */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Building2 className="h-4 w-4 text-blue-600" />
-                  Actividad Económica (Nivel 1)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {activityOptions.map((activity) => (
-                  <div
-                    key={activity.value}
-                    className="flex items-center space-x-2"
-                  >
-                    <Checkbox
-                      id={activity.value}
-                      checked={selectedActivities.includes(activity.value)}
-                      onCheckedChange={(checked) =>
-                        handleActivityChange(activity.value, checked as boolean)
-                      }
+                  <TabsContent value="map" className="space-y-4">
+                    <div className="relative">
+                      <MapChart data={allData} />
+
+                      {/* Leyenda solo en desktop */}
+                      <div className="hidden md:block absolute bottom-4 right-4">
+                        <ColorLegend
+                          minValue={minValue}
+                          maxValue={maxValue}
+                          consensoValue={consensoValue ?? undefined}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="horizontal-chart" className="space-y-4">
+                    <HorizontalBarChart
+                      data={provincialData}
+                      consensoValue={consensoValue ?? undefined}
+                      minValue={minValue}
+                      maxValue={maxValue}
                     />
-                    <label
-                      htmlFor={activity.value}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {activity.label}
-                    </label>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Fuente de Datos */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Fuente de Datos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 text-sm text-muted-foreground">
-                  <p>
-                    Datos IIBB con escala de colores - {stats.total} provincias
-                    argentinas. Formulado por Juan I. Fernández y DataDriven.
-                  </p>
-                  <Separator />
-                  <p className="text-xs">
-                    <strong>Última actualización:</strong> {currentYear}
-                  </p>
-                </div>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        {/* Buscar Provincias - Solo Mobile */}
-        <div className="md:hidden">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Search className="h-4 w-4 text-blue-600" />
-                Buscar Provincia
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                placeholder="Escribir nombre de provincia..."
-                value={searchTerm}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setSearchTerm(e.target.value)
-                }
-              />
-
-              {/* Leyenda IIBB - Solo cuando no hay búsqueda */}
-              {!searchTerm && (
-                <>
-                  <Separator />
-                  <div>
-                    <h4 className="text-sm font-medium mb-3">
-                      Leyenda IIBB por Provincia
-                    </h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded"
-                          style={{ backgroundColor: getColorByIIBB(1.0) }}
-                        ></div>
-                        <span className="text-sm">1.0% - Muy Bajo (Verde)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded"
-                          style={{ backgroundColor: getColorByIIBB(1.85) }}
-                        ></div>
-                        <span className="text-sm">
-                          1.85% - Medio (Amarillo)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded"
-                          style={{ backgroundColor: getColorByIIBB(2.5) }}
-                        ></div>
-                        <span className="text-sm">2.5% - Alto (Naranja)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded"
-                          style={{ backgroundColor: getColorByIIBB(3.7) }}
-                        ></div>
-                        <span className="text-sm">3.7% - Muy Alto (Rojo)</span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Resultados de búsqueda */}
-              {searchTerm && (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {filteredProvinces.length > 0 ? (
-                    filteredProvinces.map(([province, percentage]) => (
-                      <div
-                        key={province}
-                        className="flex justify-between items-center p-2 bg-gray-50 rounded-lg"
-                      >
-                        <span className="text-sm font-medium">{province}</span>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            style={{
-                              borderColor: getColorByIIBB(percentage),
-                              color: getColorByIIBB(percentage),
-                            }}
-                          >
-                            {percentage}%
-                          </Badge>
-                          <span className="text-xs text-gray-500">
-                            {getIIBBLevel(percentage)}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No se encontraron provincias
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        {/* Footer con información adicional */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center text-sm text-gray-500">
+              <p>
+                Datos del Impuesto sobre los Ingresos Brutos por provincia •
+                Último año disponible:{" "}
+                {availableYears[availableYears.length - 1]}
+              </p>
+              <p>
+                Fuente: Data Driven en base a Subsecretaría de Coordinación
+                Fiscal Provincial con datos de ERREPAR
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
+
+export default App;

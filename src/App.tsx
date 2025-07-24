@@ -1,24 +1,47 @@
 import { useState, useMemo, useEffect } from "react";
-import { BarChart3, TrendingUp, MapPin, Search, Calendar, Building2 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BarChart3,
+  TrendingUp,
+  MapPin,
+  Search,
+  Calendar,
+  Building2,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import MapChart from "@/components/MapChart";
-import { 
+import {
   RAW_IIBB_DATA,
-  getFilteredIIBBData, 
-  getIIBBStats, 
+  getFilteredIIBBData,
+  getIIBBStats,
   getIIBBLevel,
   getColorByIIBB,
   getYearOptions,
   getActivityOptions,
   getAvailableYears,
-  getDataSummary,
-  type IIBBDataItem
+  type IIBBDataItem,
 } from "@/constants/constants";
 
 export default function App() {
@@ -26,11 +49,14 @@ export default function App() {
   const [rawData] = useState<IIBBDataItem[]>(RAW_IIBB_DATA);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [selectedActivities, setSelectedActivities] = useState<string[]>(["General"]);
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([
+    "General",
+  ]);
 
   // Inicializar año por defecto cuando haya datos
   const availableYears = useMemo(() => getAvailableYears(rawData), [rawData]);
-  const currentYear = selectedYear || (availableYears.length > 0 ? availableYears[0] : "2024");
+  const currentYear =
+    selectedYear || (availableYears.length > 0 ? availableYears[0] : "2024");
 
   // Debug: verificar datos en consola
   useEffect(() => {
@@ -45,35 +71,40 @@ export default function App() {
   // Datos filtrados basados en año y actividades seleccionadas
   const currentData = useMemo(() => {
     if (rawData.length === 0) return {};
-    const filtered = getFilteredIIBBData(rawData, currentYear, selectedActivities);
-    console.log("🗂️ Datos filtrados para", currentYear, ":", Object.keys(filtered).length, "provincias");
+    const filtered = getFilteredIIBBData(
+      rawData,
+      currentYear,
+      selectedActivities
+    );
+    console.log(
+      "🗂️ Datos filtrados para",
+      currentYear,
+      ":",
+      Object.keys(filtered).length,
+      "provincias"
+    );
     return filtered;
   }, [rawData, currentYear, selectedActivities]);
 
-  // Estadísticas calculadas en base a los datos actuales
   const stats = useMemo(() => getIIBBStats(currentData), [currentData]);
 
-  // Resumen de los datos para debugging/info
-  const dataSummary = useMemo(() => {
-    if (rawData.length === 0) return null;
-    return getDataSummary(rawData);
-  }, [rawData]);
-
-  // Opciones dinámicas para selectores
   const yearOptions = useMemo(() => getYearOptions(rawData), [rawData]);
-  const activityOptions = useMemo(() => getActivityOptions(rawData, currentYear), [rawData, currentYear]);
+  const activityOptions = useMemo(
+    () => getActivityOptions(rawData, currentYear),
+    [rawData, currentYear]
+  );
 
   const handleActivityChange = (activity: string, checked: boolean) => {
-    setSelectedActivities(prev => {
+    setSelectedActivities((prev) => {
       if (activity === "General") {
         return checked ? ["General"] : [];
       } else {
-        const withoutGeneral = prev.filter(a => a !== "General");
+        const withoutGeneral = prev.filter((a) => a !== "General");
         if (checked) {
           const newActivities = [...withoutGeneral, activity];
           return newActivities;
         } else {
-          const filtered = withoutGeneral.filter(a => a !== activity);
+          const filtered = withoutGeneral.filter((a) => a !== activity);
           return filtered.length === 0 ? ["General"] : filtered;
         }
       }
@@ -95,13 +126,12 @@ export default function App() {
               <BarChart3 className="h-6 w-6 text-blue-600" />
               Dashboard IIBB - Argentina
             </CardTitle>
-            <CardDescription>
-              Esperando datos para cargar...
-            </CardDescription>
+            <CardDescription>Esperando datos para cargar...</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600">
-              Los datos de IIBB se cargarán próximamente. Una vez cargados, podrás explorar:
+              Los datos de IIBB se cargarán próximamente. Una vez cargados,
+              podrás explorar:
             </p>
             <ul className="list-disc list-inside text-sm text-gray-600 mt-2 space-y-1">
               <li>Datos por año y actividad económica</li>
@@ -118,21 +148,16 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-7xl space-y-6">
-        
         {/* Header */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-blue-600" />
-              Atlas Tributario Argentino
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <BarChart3 className="h-6 w-6 text-blue-600 " />
+              Monitor Fiscal Provincial
             </CardTitle>
             <CardDescription>
-              Análisis interactivo del Impuesto sobre los Ingresos Brutos por provincia
-              {dataSummary && (
-                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                  {dataSummary.totalRecords} registros • {dataSummary.uniqueProvinces} provincias
-                </span>
-              )}
+              Análisis interactivo del Impuesto sobre los Ingresos Brutos por
+              provincia
             </CardDescription>
           </CardHeader>
         </Card>
@@ -141,20 +166,26 @@ export default function App() {
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Rango de Alícuotas</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Rango de Alícuotas
+              </CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.min}% - {stats.max}%</div>
+              <div className="text-2xl font-bold">
+                {stats.min}% - {stats.max}%
+              </div>
               <p className="text-xs text-muted-foreground">
                 Variación significativa entre provincias
               </p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Promedio Nacional</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Promedio Nacional
+              </CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -164,10 +195,12 @@ export default function App() {
               </p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Provincias Analizadas</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Provincias Analizadas
+              </CardTitle>
               <MapPin className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -180,7 +213,6 @@ export default function App() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-12">
-          
           {/* Mapa Principal */}
           <div className="lg:col-span-8">
             <Card>
@@ -190,7 +222,9 @@ export default function App() {
                   Mapa de IIBB por Provincias Argentinas
                 </CardTitle>
                 <CardDescription>
-                  Visualización interactiva del Impuesto sobre los Ingresos Brutos (IIBB) por provincia. Los colores van de verde (bajo) a rojo (alto), con valores entre 1% y 3.7%.
+                  Visualización interactiva del Impuesto sobre los Ingresos
+                  Brutos (IIBB) por provincia. Los colores van de verde (bajo) a
+                  rojo (alto), con valores entre 1% y 3.7%.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -204,7 +238,6 @@ export default function App() {
 
           {/* Sidebar */}
           <div className="lg:col-span-4 space-y-6">
-            
             {/* ¿Qué es el IIBB? */}
             <Card>
               <CardHeader>
@@ -215,10 +248,11 @@ export default function App() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  El <strong>Impuesto sobre los Ingresos Brutos</strong> es un tributo 
-                  provincial que grava el ejercicio habitual de actividades económicas.
+                  El <strong>Impuesto sobre los Ingresos Brutos</strong> es un
+                  tributo provincial que grava el ejercicio habitual de
+                  actividades económicas.
                 </p>
-                
+
                 <Accordion type="single" collapsible>
                   <AccordionItem value="caracteristicas">
                     <AccordionTrigger className="text-sm">
@@ -233,7 +267,7 @@ export default function App() {
                       </ul>
                     </AccordionContent>
                   </AccordionItem>
-                  
+
                   <AccordionItem value="impacto">
                     <AccordionTrigger className="text-sm">
                       Impacto:
@@ -285,11 +319,14 @@ export default function App() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {activityOptions.map((activity) => (
-                  <div key={activity.value} className="flex items-center space-x-2">
+                  <div
+                    key={activity.value}
+                    className="flex items-center space-x-2"
+                  >
                     <Checkbox
                       id={activity.value}
                       checked={selectedActivities.includes(activity.value)}
-                      onCheckedChange={(checked) => 
+                      onCheckedChange={(checked) =>
                         handleActivityChange(activity.value, checked as boolean)
                       }
                     />
@@ -312,8 +349,8 @@ export default function App() {
               <CardContent>
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <p>
-                    Datos IIBB con escala de colores - {stats.total} provincias argentinas. 
-                    Formulado por Juan I. Fernández y DataDriven.
+                    Datos IIBB con escala de colores - {stats.total} provincias
+                    argentinas. Formulado por Juan I. Fernández y DataDriven.
                   </p>
                   <Separator />
                   <p className="text-xs">
@@ -338,53 +375,71 @@ export default function App() {
               <Input
                 placeholder="Escribir nombre de provincia..."
                 value={searchTerm}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setSearchTerm(e.target.value)
+                }
               />
-              
+
               {/* Leyenda IIBB - Solo cuando no hay búsqueda */}
               {!searchTerm && (
                 <>
                   <Separator />
                   <div>
-                    <h4 className="text-sm font-medium mb-3">Leyenda IIBB por Provincia</h4>
+                    <h4 className="text-sm font-medium mb-3">
+                      Leyenda IIBB por Provincia
+                    </h4>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: getColorByIIBB(1.0) }}></div>
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: getColorByIIBB(1.0) }}
+                        ></div>
                         <span className="text-sm">1.0% - Muy Bajo (Verde)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: getColorByIIBB(1.85) }}></div>
-                        <span className="text-sm">1.85% - Medio (Amarillo)</span>
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: getColorByIIBB(1.85) }}
+                        ></div>
+                        <span className="text-sm">
+                          1.85% - Medio (Amarillo)
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: getColorByIIBB(2.5) }}></div>
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: getColorByIIBB(2.5) }}
+                        ></div>
                         <span className="text-sm">2.5% - Alto (Naranja)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: getColorByIIBB(3.7) }}></div>
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: getColorByIIBB(3.7) }}
+                        ></div>
                         <span className="text-sm">3.7% - Muy Alto (Rojo)</span>
                       </div>
                     </div>
                   </div>
                 </>
               )}
-              
+
               {/* Resultados de búsqueda */}
               {searchTerm && (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {filteredProvinces.length > 0 ? (
                     filteredProvinces.map(([province, percentage]) => (
-                      <div 
-                        key={province} 
+                      <div
+                        key={province}
                         className="flex justify-between items-center p-2 bg-gray-50 rounded-lg"
                       >
                         <span className="text-sm font-medium">{province}</span>
                         <div className="flex items-center gap-2">
-                          <Badge 
+                          <Badge
                             variant="outline"
                             style={{
                               borderColor: getColorByIIBB(percentage),
-                              color: getColorByIIBB(percentage)
+                              color: getColorByIIBB(percentage),
                             }}
                           >
                             {percentage}%
@@ -408,4 +463,4 @@ export default function App() {
       </div>
     </div>
   );
-} 
+}
